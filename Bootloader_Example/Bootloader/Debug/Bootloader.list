@@ -39,11 +39,11 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  17 .debug_line   0000c137  00000000  00000000  000599f1  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 18 .debug_str    000f376f  00000000  00000000  00065b28  2**0
+ 18 .debug_str    000f3755  00000000  00000000  00065b28  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 19 .comment      00000053  00000000  00000000  00159297  2**0
+ 19 .comment      00000053  00000000  00000000  0015927d  2**0
                   CONTENTS, READONLY
- 20 .debug_frame  00002e20  00000000  00000000  001592ec  2**2
+ 20 .debug_frame  00002e20  00000000  00000000  001592d0  2**2
                   CONTENTS, READONLY, DEBUGGING, OCTETS
 
 Disassembly of section .text:
@@ -2168,7 +2168,7 @@ void load_new_app( void )
      }
 
      //Load the new app or firmware to app's flash address
-     ret = write_data_to_flash_app( (uint8_t*)slot_addr, cfg.slot_table[slot_num].fw_size);
+     ret = write_data_to_flash_app( (uint8_t*)slot_addr, cfg.slot_table[slot_num].fw_size );
  800104e:	6c38      	ldr	r0, [r7, #64]	; 0x40
  8001050:	f897 2046 	ldrb.w	r2, [r7, #70]	; 0x46
  8001054:	4613      	mov	r3, r2
@@ -2261,7 +2261,7 @@ void load_new_app( void )
  80010ea:	f04f 30ff 	mov.w	r0, #4294967295
  80010ee:	f001 f897 	bl	8002220 <FLASH_WaitForLastOperation>
    //Verify the application
-   uint32_t cal_data_crc = HAL_CRC_Calculate( &hcrc, (uint32_t*)ETX_APP_FLASH_ADDR, cfg.slot_table[slot_num].fw_size);
+   uint32_t cal_data_crc = HAL_CRC_Calculate( &hcrc, (uint32_t*)ETX_APP_FLASH_ADDR, cfg.slot_table[slot_num].fw_size );
  80010f2:	f897 2046 	ldrb.w	r2, [r7, #70]	; 0x46
  80010f6:	4613      	mov	r3, r2
  80010f8:	005b      	lsls	r3, r3, #1
