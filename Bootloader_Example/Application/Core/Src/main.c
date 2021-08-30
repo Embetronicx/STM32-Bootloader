@@ -23,6 +23,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
+#include <string.h>
+#include "etx_ota_update.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,27 +38,61 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define MAJOR 0   //APP Major version Number
-#define MINOR 3   //APP Minor version Number
+#define MINOR 4   //APP Minor version Number
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
 
+UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
 const uint8_t APP_Version[2] = { MAJOR, MINOR };
+uint8_t rx_buf[4];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+static HAL_StatusTypeDef write_cfg_to_flash( ETX_GNRL_CFG_ *cfg );
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (huart->Instance == USART2)
+  {
+    if( !strncmp("ota", (char*)rx_buf, 3) )
+    {
+      printf("Received OTA Request from Mobile Application\r\n");
+
+      /* Update the reboot reason as OTA request */
+
+      /* Read the configuration */
+      ETX_GNRL_CFG_ cfg;
+      memcpy( &cfg, (ETX_GNRL_CFG_*) (ETX_CONFIG_FLASH_ADDR), sizeof(ETX_GNRL_CFG_) );
+
+      //update the reboot reason
+      cfg.reboot_cause = ETX_OTA_REQUEST;
+
+      /* write back the updated config */
+      write_cfg_to_flash( &cfg );
+
+      // Reset the controller
+      HAL_NVIC_SystemReset();
+    }
+    else
+    {
+      HAL_UART_Receive_IT(&huart2, rx_buf, 3);
+    }
+    memset(rx_buf, 0, sizeof(rx_buf));
+  }
+}
 
 /* USER CODE END 0 */
 
@@ -89,8 +125,10 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART3_UART_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   printf("Starting Application(%d.%d)\r\n", APP_Version[0], APP_Version[1] );
+  HAL_UART_Receive_IT(&huart2, rx_buf, 3);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -101,9 +139,9 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     HAL_GPIO_WritePin( GPIOB, GPIO_PIN_7, GPIO_PIN_SET );
-    HAL_Delay(200);    //5 Sec delay
+    HAL_Delay(200);    //200ms delay
     HAL_GPIO_WritePin( GPIOB, GPIO_PIN_7, GPIO_PIN_RESET );
-    HAL_Delay(200);	//5 Sec delay
+    HAL_Delay(200);	  //200ms delay
   }
   /* USER CODE END 3 */
 }
@@ -146,12 +184,48 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART3;
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART2|RCC_PERIPHCLK_USART3;
+  PeriphClkInitStruct.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
   PeriphClkInitStruct.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 9600;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
 }
 
 /**
@@ -233,6 +307,86 @@ int fputc(int ch, FILE *f)
 
   return ch;
 }
+
+/**
+  * @brief Write the configuration to flash
+  * @param cfg config structure
+  * @retval none
+  */
+static HAL_StatusTypeDef write_cfg_to_flash( ETX_GNRL_CFG_ *cfg )
+{
+  HAL_StatusTypeDef ret;
+
+  do
+  {
+    if( cfg == NULL )
+    {
+      ret = HAL_ERROR;
+      break;
+    }
+
+    ret = HAL_FLASH_Unlock();
+    if( ret != HAL_OK )
+    {
+      break;
+    }
+
+    //Check if the FLASH_FLAG_BSY.
+    FLASH_WaitForLastOperation( HAL_MAX_DELAY );
+
+    //Erase the Flash
+    FLASH_EraseInitTypeDef EraseInitStruct;
+    uint32_t SectorError;
+
+    EraseInitStruct.TypeErase     = FLASH_TYPEERASE_SECTORS;
+    EraseInitStruct.Sector        = FLASH_SECTOR_4;
+    EraseInitStruct.NbSectors     = 1;                    //erase only sector 4
+    EraseInitStruct.VoltageRange  = FLASH_VOLTAGE_RANGE_3;
+
+    // clear all flags before you write it to flash
+    __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_OPERR |
+                FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR);
+
+    ret = HAL_FLASHEx_Erase( &EraseInitStruct, &SectorError );
+    if( ret != HAL_OK )
+    {
+      break;
+    }
+
+    //write the configuration
+    uint8_t *data = (uint8_t *) cfg;
+    for( uint32_t i = 0u; i < sizeof(ETX_GNRL_CFG_); i++ )
+    {
+      ret = HAL_FLASH_Program( FLASH_TYPEPROGRAM_BYTE,
+                               ETX_CONFIG_FLASH_ADDR + i,
+                               data[i]
+                             );
+      if( ret != HAL_OK )
+      {
+        printf("Slot table Flash Write Error\r\n");
+        break;
+      }
+    }
+
+    //Check if the FLASH_FLAG_BSY.
+    FLASH_WaitForLastOperation( HAL_MAX_DELAY );
+
+    if( ret != HAL_OK )
+    {
+      break;
+    }
+
+    ret = HAL_FLASH_Lock();
+    if( ret != HAL_OK )
+    {
+      break;
+    }
+  }while( false );
+
+  return ret;
+}
+
+
 /* USER CODE END 4 */
 
 /**
