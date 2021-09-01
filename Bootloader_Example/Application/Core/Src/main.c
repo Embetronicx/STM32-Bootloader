@@ -139,9 +139,9 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
     HAL_GPIO_WritePin( GPIOB, GPIO_PIN_7, GPIO_PIN_SET );
-    HAL_Delay(200);    //200ms delay
+    HAL_Delay(2000);    //200ms delay
     HAL_GPIO_WritePin( GPIOB, GPIO_PIN_7, GPIO_PIN_RESET );
-    HAL_Delay(200);	  //200ms delay
+    HAL_Delay(2000);	  //200ms delay
   }
   /* USER CODE END 3 */
 }
@@ -209,7 +209,7 @@ static void MX_USART2_UART_Init(void)
 
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 9600;
+  huart2.Init.BaudRate = 115200;
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
   huart2.Init.StopBits = UART_STOPBITS_1;
   huart2.Init.Parity = UART_PARITY_NONE;
