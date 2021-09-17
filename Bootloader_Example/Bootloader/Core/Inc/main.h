@@ -47,7 +47,7 @@ extern "C" {
 
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
-
+#define SD_SPI_HANDLE hspi1
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
@@ -58,6 +58,8 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define SD_CS_Pin GPIO_PIN_14
+#define SD_CS_GPIO_Port GPIOD
 /* USER CODE BEGIN Private defines */
 extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart3;

@@ -28,6 +28,8 @@
 #define ETX_OTA_DATA_OVERHEAD (    9 )  //data overhead
 #define ETX_OTA_PACKET_MAX_SIZE ( ETX_OTA_DATA_MAX_SIZE + ETX_OTA_DATA_OVERHEAD )
 
+#define ETX_SD_CARD_FW_PATH "ETX_FW/app.bin"    //Firmware name present in SD card
+
 /*
  * Reboot reason
  */
@@ -44,6 +46,17 @@ typedef enum
   ETX_OTA_EX_OK       = 0,    // Success
   ETX_OTA_EX_ERR      = 1,    // Failure
 }ETX_OTA_EX_;
+
+/*
+ * Exception codes for SD Card
+ */
+typedef enum
+{
+  ETX_SD_EX_OK       = 0,    // Updated firmware successfully
+  ETX_SD_EX_NO_SD    = 1,    // No SD card Found
+  ETX_SD_EX_FU_ERR   = 2,    // Failure during Firmware update
+  ETX_SD_EX_ERR      = 3,    // Other Failure
+}ETX_SD_EX_;
 
 /*
  * OTA process state
@@ -189,4 +202,5 @@ typedef struct
 
 ETX_OTA_EX_ etx_ota_download_and_flash( void );
 void load_new_app( void );
+ETX_SD_EX_ check_update_frimware_SD_card( void );
 #endif /* INC_ETX_OTA_UPDATE_H_ */

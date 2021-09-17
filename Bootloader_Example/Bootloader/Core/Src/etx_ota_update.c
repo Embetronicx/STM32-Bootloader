@@ -10,6 +10,7 @@
 #include "main.h"
 #include <string.h>
 #include <stdbool.h>
+#include "fatfs.h"
 
 /* Buffer to hold the received data */
 static uint8_t Rx_Buffer[ ETX_OTA_PACKET_MAX_SIZE ];
@@ -198,7 +199,7 @@ static ETX_OTA_EX_ etx_process_data( uint8_t *buf, uint16_t len )
             }
           }
 
-          /* write the chunk to the Flash (App location) */
+          /* write the chunk to the Flash (Slot location) */
           ex = write_data_to_slot( slot_num_to_write, buf+4, data_len, is_first_block );
 
           if( ex == HAL_OK )
@@ -742,6 +743,183 @@ void load_new_app( void )
    }
    printf("Done!!!\r\n");
 }
+
+/**
+  * @brief Check the SD for Firmware update
+  * @param none
+  * @retval ETX_SD_EX_
+  */
+ETX_SD_EX_ check_update_frimware_SD_card( void )
+{
+  ETX_SD_EX_  ret = ETX_SD_EX_OK;
+  FATFS       FatFs;                //Fatfs handle
+  FIL         fil;                  //File handle
+  FRESULT     fres;                 //Result after operations
+
+  do
+  {
+    //Mount the SD Card
+    fres = f_mount(&FatFs, "", 1);    //1=mount now
+    if (fres != FR_OK)
+    {
+      printf("No SD Card found : (%i)\r\n", fres);
+      ret = ETX_SD_EX_NO_SD;
+      break;
+    }
+    printf("SD Card Mounted Successfully!!!\r\n");
+
+    fres = f_open(&fil, ETX_SD_CARD_FW_PATH, FA_WRITE | FA_READ | FA_OPEN_EXISTING);
+    if(fres != FR_OK)
+    {
+      printf("No Firmware found in SD Card : (%i)\r\n", fres);
+      ret = ETX_SD_EX_ERR;
+      break;
+    }
+
+    UINT bytesRead;
+    BYTE readBuf[ETX_OTA_DATA_MAX_SIZE];
+    UINT fw_size = f_size(&fil);
+    UINT size;
+
+    printf("Firmware found in SD Card. \r\nFW Size = %d Bytes\r\n", fw_size);
+
+    //get the slot number
+    slot_num_to_write = get_available_slot_number();
+    if( slot_num_to_write == 0xFF )
+    {
+      printf("f_getfree error (%i)\r\n", fres);
+      ret = ETX_SD_EX_FU_ERR;
+      f_close(&fil);
+      break;
+    }
+
+    bool is_first_block = true;
+
+    /* Read the configuration */
+    ETX_GNRL_CFG_ cfg;
+    memcpy( &cfg, cfg_flash, sizeof(ETX_GNRL_CFG_) );
+
+    /* Before writing the data, reset the available slot */
+    cfg.slot_table[slot_num_to_write].is_this_slot_not_valid = 1u;
+
+    /* write back the updated config */
+    HAL_StatusTypeDef ex = write_cfg_to_flash( &cfg );
+    if( ex != HAL_OK )
+    {
+      ret = ETX_SD_EX_FU_ERR;
+      f_close(&fil);
+      break;
+    }
+
+    ota_fw_received_size = 0;
+
+    for(uint32_t i = 0; i < fw_size; )
+    {
+      if( (fw_size - i) >= ETX_OTA_DATA_MAX_SIZE )
+      {
+        size = ETX_OTA_DATA_MAX_SIZE;
+      }
+      else
+      {
+        size = fw_size - i;
+      }
+
+      //clear the buffer
+      memset(readBuf, 0, ETX_OTA_DATA_MAX_SIZE);
+
+      fres = f_read(&fil, readBuf, size, &bytesRead);
+      if( ( fres != FR_OK) || (size != bytesRead ) )
+      {
+        printf("FW Read Error : (%i)\r\n", fres);
+        ret = ETX_SD_EX_FU_ERR;
+        break;
+      }
+
+      /* write the chunk to the Flash (Slot location) */
+      ex = write_data_to_slot( slot_num_to_write, readBuf, size, is_first_block );
+      if( ex != HAL_OK )
+      {
+        printf("Flash Erite Error : (%d)\r\n", ex);
+        ret = ETX_SD_EX_FU_ERR;
+        break;
+      }
+
+      is_first_block = false;
+      i += size;
+    }
+
+    if( ret != ETX_SD_EX_OK )
+    {
+      f_close(&fil);
+      break;
+    }
+
+    uint32_t slot_addr;
+    if( slot_num_to_write == 0u )
+    {
+      slot_addr = ETX_APP_SLOT0_FLASH_ADDR;
+    }
+    else
+    {
+      slot_addr = ETX_APP_SLOT1_FLASH_ADDR;
+    }
+
+    //Calculate the CRC
+    uint32_t cal_crc = HAL_CRC_Calculate( &hcrc, (uint32_t*)slot_addr, fw_size);
+
+    /* Read the configuration */
+    memcpy( &cfg, cfg_flash, sizeof(ETX_GNRL_CFG_) );
+
+    //update the slot
+    cfg.slot_table[slot_num_to_write].fw_crc                 = cal_crc;
+    cfg.slot_table[slot_num_to_write].fw_size                = fw_size;
+    cfg.slot_table[slot_num_to_write].is_this_slot_not_valid = 0u;
+    cfg.slot_table[slot_num_to_write].should_we_run_this_fw  = 1u;
+
+    //reset other slots
+    for( uint8_t i = 0; i < ETX_NO_OF_SLOTS; i++ )
+    {
+      if( slot_num_to_write != i )
+      {
+        //update the slot as inactive
+        cfg.slot_table[i].should_we_run_this_fw = 0u;
+      }
+    }
+
+    //update the reboot reason
+    cfg.reboot_cause = ETX_NORMAL_BOOT;
+
+    /* write back the updated config */
+    ex = write_cfg_to_flash( &cfg );
+    if( ex != HAL_OK )
+    {
+      printf("Flash Erite Error : (%d)\r\n", ex);
+      ret = ETX_SD_EX_FU_ERR;
+      break;
+    }
+
+    //close your file
+    f_close(&fil);
+
+    //Once you flash the file, please delete it.
+    fres = f_unlink(ETX_SD_CARD_FW_PATH);
+    if (fres != FR_OK)
+    {
+      printf("Cannot able to delete the FW file\n");
+    }
+
+  } while( false );
+
+  if( ret != ETX_SD_EX_NO_SD )
+  {
+    //We're done, so de-mount the drive
+    f_mount(NULL, "", 0);
+  }
+
+  return ret;
+}
+
+
 
 /**
   * @brief Write the configuration to flash
