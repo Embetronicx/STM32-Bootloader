@@ -106,94 +106,104 @@ int main(void)
   MX_FATFS_Init();
   /* USER CODE BEGIN 2 */
 
+  // Turn ON the Green Led to tell the user that Bootloader is running
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET );    //Green LED ON
+  printf("Starting Bootloader(%d.%d)\r\n", BL_Version[0], BL_Version[1] );
+
+  ETX_SD_EX_ sd_ex = check_update_frimware_SD_card();
 
   //Check for firmware in SD Card
-  if( check_update_frimware_SD_card() == ETX_SD_EX_FU_ERR )
+  if( sd_ex == ETX_SD_EX_FU_ERR )
   {
     /* Fw update error. Don't process. */
     printf("SD Card Fw Update : ERROR!!! HALT!!!\r\n");
     while( 1 );
   }
-
-  // Turn ON the Green Led to tell the user that Bootloader is running
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET );    //Green LED ON
-  printf("Starting Bootloader(%d.%d)\r\n", BL_Version[0], BL_Version[1] );
-  //HAL_Delay(2000);   //2sec delay for nothing
-
-
-  //Read the reboot cause and act accordingly
-  printf("Reading the reboot reason...\r\n");
-
-  ETX_GNRL_CFG_ *cfg          = (ETX_GNRL_CFG_*) (ETX_CONFIG_FLASH_ADDR);
-  bool          goto_ota_mode = false;
-
-  switch( cfg->reboot_cause )
+  else if( sd_ex == ETX_SD_EX_OK )
   {
-  case ETX_NORMAL_BOOT:
-    {
-      /*
-       * It is a normal boot. So, do nothing here.
-       */
-      printf("Normal Boot\r\n");
-      break;
-    }
-  case ETX_OTA_REQUEST:
-  case ETX_FIRST_TIME_BOOT:
-    {
-      /*
-       * Application has requested for the OTA update or this is the first
-       * time boot. So, don't wait for the user to press the button.
-       * Directly go to OTA mode.
-       */
-      printf("First time boot / OTA Request...\r\n");
-      printf("Going to OTA mode...\r\n");
-      goto_ota_mode = true;
-      break;
-    }
-  case ETX_LOAD_PREV_APP:
-    {
-      //TODO: Implement
-      break;
-    }
-  default:
-    /* should not get here */
-    break;
-  };
-
-  /* Check the GPIO for 3 seconds */
-  GPIO_PinState OTA_Pin_state;
-  uint32_t end_tick = HAL_GetTick() + 3000;   // from now to 3 Seconds
-
-  printf("Press the User Button PC13 to trigger OTA update...\r\n");
-  do
+    /*
+     * We have updated the firmware through SD card. Skip other firmware
+     * update mechanism.
+     */
+  }
+  else
   {
-    OTA_Pin_state = HAL_GPIO_ReadPin( GPIOC, GPIO_PIN_13 );
-    uint32_t current_tick = HAL_GetTick();
+    //check for other firmware update mechanisms
 
-    /* Check the button is pressed or not for 3seconds */
-    if( ( OTA_Pin_state != GPIO_PIN_RESET ) || ( current_tick > end_tick ) )
+    //Read the reboot cause and act accordingly
+    printf("Reading the reboot reason...\r\n");
+
+    ETX_GNRL_CFG_ *cfg          = (ETX_GNRL_CFG_*) (ETX_CONFIG_FLASH_ADDR);
+    bool          goto_ota_mode = false;
+
+    switch( cfg->reboot_cause )
     {
-      /* Either timeout or Button is pressed */
+    case ETX_NORMAL_BOOT:
+      {
+        /*
+         * It is a normal boot. So, do nothing here.
+         */
+        printf("Normal Boot\r\n");
+        break;
+      }
+    case ETX_OTA_REQUEST:
+    case ETX_FIRST_TIME_BOOT:
+      {
+        /*
+         * Application has requested for the OTA update or this is the first
+         * time boot. So, don't wait for the user to press the button.
+         * Directly go to OTA mode.
+         */
+        printf("First time boot / OTA Request...\r\n");
+        printf("Going to OTA mode...\r\n");
+        goto_ota_mode = true;
+        break;
+      }
+    case ETX_LOAD_PREV_APP:
+      {
+        //TODO: Implement
+        break;
+      }
+    default:
+      /* should not get here */
       break;
-    }
-  }while( !goto_ota_mode );
+    };
 
-  /*Start the Firmware or Application update */
-  if( ( OTA_Pin_state == GPIO_PIN_SET ) || ( goto_ota_mode ) )
-  {
-    printf("Starting Firmware Download!!!\r\n");
-    /* OTA Request. Receive the data from the UART4 and flash */
-    if( etx_ota_download_and_flash() != ETX_OTA_EX_OK )
+    /* Check the GPIO for 3 seconds */
+    GPIO_PinState OTA_Pin_state;
+    uint32_t end_tick = HAL_GetTick() + 3000;   // from now to 3 Seconds
+
+    printf("Press the User Button PC13 to trigger OTA update...\r\n");
+    do
     {
-      /* Error. Don't process. */
-      printf("OTA Update : ERROR!!! HALT!!!\r\n");
-      while( 1 );
-    }
-    else
+      OTA_Pin_state = HAL_GPIO_ReadPin( GPIOC, GPIO_PIN_13 );
+      uint32_t current_tick = HAL_GetTick();
+
+      /* Check the button is pressed or not for 3seconds */
+      if( ( OTA_Pin_state != GPIO_PIN_RESET ) || ( current_tick > end_tick ) )
+      {
+        /* Either timeout or Button is pressed */
+        break;
+      }
+    }while( !goto_ota_mode );
+
+    /*Start the Firmware or Application update */
+    if( ( OTA_Pin_state == GPIO_PIN_SET ) || ( goto_ota_mode ) )
     {
-      /* Reset to load the new application */
-      printf("Firmware update is done!!! Rebooting...\r\n");
-      HAL_NVIC_SystemReset();
+      printf("Starting Firmware Download!!!\r\n");
+      /* OTA Request. Receive the data from the UART4 and flash */
+      if( etx_ota_download_and_flash() != ETX_OTA_EX_OK )
+      {
+        /* Error. Don't process. */
+        printf("OTA Update : ERROR!!! HALT!!!\r\n");
+        while( 1 );
+      }
+      else
+      {
+        /* Reset to load the new application */
+        printf("Firmware update is done!!! Rebooting...\r\n");
+        HAL_NVIC_SystemReset();
+      }
     }
   }
 

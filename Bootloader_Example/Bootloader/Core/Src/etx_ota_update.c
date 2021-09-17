@@ -751,7 +751,7 @@ void load_new_app( void )
   */
 ETX_SD_EX_ check_update_frimware_SD_card( void )
 {
-  ETX_SD_EX_  ret = ETX_SD_EX_OK;
+  ETX_SD_EX_  ret = ETX_SD_EX_ERR;
   FATFS       FatFs;                //Fatfs handle
   FIL         fil;                  //File handle
   FRESULT     fres;                 //Result after operations
@@ -772,7 +772,6 @@ ETX_SD_EX_ check_update_frimware_SD_card( void )
     if(fres != FR_OK)
     {
       printf("No Firmware found in SD Card : (%i)\r\n", fres);
-      ret = ETX_SD_EX_ERR;
       break;
     }
 
@@ -848,7 +847,7 @@ ETX_SD_EX_ check_update_frimware_SD_card( void )
       i += size;
     }
 
-    if( ret != ETX_SD_EX_OK )
+    if( ret == ETX_SD_EX_FU_ERR )
     {
       f_close(&fil);
       break;
@@ -907,6 +906,9 @@ ETX_SD_EX_ check_update_frimware_SD_card( void )
     {
       printf("Cannot able to delete the FW file\n");
     }
+
+    //update the status okay
+    ret = ETX_SD_EX_OK;
 
   } while( false );
 
