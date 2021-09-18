@@ -2,3 +2,6 @@ This has the customized bootloader and application. This has been created to exp
 
 You can find the complete Bootloader tutorial in the below link.
 https://embetronicx.com/bootloader-tutorials/
+
+For Bootloader Video tutorials, you can check this video playlist.
+https://www.youtube.com/watch?v=jzo7z2gNBgg&list=PLArwqFvBIlwHRgPtsQAhgZavlp42qpkiG
