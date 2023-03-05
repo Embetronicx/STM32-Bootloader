@@ -159,7 +159,7 @@ static ETX_OTA_EX_ etx_process_data( uint8_t *buf, uint16_t len )
         if( data->packet_type == ETX_OTA_PACKET_TYPE_DATA )
         {
           /* write the chunk to the Flash (App location) */
-          ex = write_data_to_flash_app( buf, data_len, ( ota_fw_received_size == 0) );
+          ex = write_data_to_flash_app( buf+4, data_len, ( ota_fw_received_size == 0) );
 
           if( ex == HAL_OK )
           {
