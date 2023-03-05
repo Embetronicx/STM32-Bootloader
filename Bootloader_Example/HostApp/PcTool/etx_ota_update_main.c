@@ -26,6 +26,7 @@ uint8_t APP_BIN[ETX_OTA_MAX_FW_SIZE];
 
 void delay(uint32_t us)
 {
+    us *= 10;
 #ifdef _WIN32
     //Sleep(ms);
     __int64 time1 = 0, time2 = 0, freq = 0;
