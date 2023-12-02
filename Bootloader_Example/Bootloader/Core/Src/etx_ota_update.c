@@ -368,7 +368,7 @@ static HAL_StatusTypeDef write_data_to_flash_app( uint8_t *data,
     {
       ret = HAL_FLASH_Program( FLASH_TYPEPROGRAM_BYTE,
                                (ETX_APP_FLASH_ADDR + ota_fw_received_size),
-                               data[4+i]
+                               data[i]
                              );
       if( ret == HAL_OK )
       {
