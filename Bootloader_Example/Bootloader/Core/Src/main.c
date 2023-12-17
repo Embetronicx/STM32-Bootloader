@@ -246,10 +246,18 @@ static void goto_application(void)
 
   void (*app_reset_handler)(void) = (void*)(*((volatile uint32_t*) (0x08040000 + 4U)));
 
-  //__set_MSP(*(volatile uint32_t*) 0x08040000);
-
   // Turn OFF the Green Led to tell the user that Bootloader is not running
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET );    //Green LED OFF
+
+  /* Reset the Clock */
+  HAL_RCC_DeInit();
+  HAL_DeInit();
+  __set_MSP(*(volatile uint32_t*) 0x08040000);
+  SysTick->CTRL = 0;
+  SysTick->LOAD = 0;
+  SysTick->VAL = 0;
+
+  /* Jump to application */
   app_reset_handler();    //call the app reset handler
 }
 /* USER CODE END 4 */
